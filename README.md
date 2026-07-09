@@ -47,7 +47,7 @@ png, jpg, jpeg`.
 | -------------- | ----------------------------------------------------------- |
 | Frontend       | Next.js (App Router) + React + TypeScript + Tailwind CSS    |
 | Conversion API | Python serverless function at `api/convert.py` (Vercel)     |
-| Engine         | `markitdown[pdf,docx,pptx,xlsx,xls,outlook]` (v0.1.6)       |
+| Engine         | `markitdown[pdf,docx,pptx,xlsx,xls]` (v0.1.6)               |
 
 ```
 /
@@ -68,6 +68,53 @@ png, jpg, jpeg`.
 ├─ tsconfig.json
 └─ README.md
 ```
+
+---
+
+## Supported formats & dependencies
+
+Text-based formats work with the base install. Office and PDF formats each
+require a MarkItDown "extra" — all bundled in our single requirements.txt pin:
+`markitdown[pdf,docx,pptx,xlsx,xls]`.
+
+| Format          | Extensions        | Needs an extra?    | Installed via       |
+| --------------- | ----------------- | ------------------ | ------------------- |
+| HTML            | .html, .htm       | No — built-in      | —                   |
+| CSV             | .csv              | No — built-in      | —                   |
+| JSON            | .json             | No — built-in      | —                   |
+| XML             | .xml              | No — built-in      | —                   |
+| Plain text      | .txt              | No — built-in      | —                   |
+| PDF             | .pdf              | Yes                | markitdown[pdf]     |
+| Word            | .docx             | Yes                | markitdown[docx]    |
+| PowerPoint      | .pptx             | Yes                | markitdown[pptx]    |
+| Excel           | .xlsx             | Yes                | markitdown[xlsx]    |
+| Excel (legacy)  | .xls              | Yes                | markitdown[xls]     |
+| Images          | .png, .jpg, .jpeg | No (EXIF/metadata) | —                   |
+
+Image note: images return EXIF/metadata and directly extractable text only. Full
+visual description/OCR needs an optional LLM client (`llm_client` / `llm_model`),
+which this app does not configure — so image output is intentionally minimal.
+
+> **Outlook `.msg` not supported:** the `[outlook]` extra is intentionally **not**
+> installed (the allow-list doesn't accept `.msg`, so shipping it would be unused
+> bundle weight). To enable Outlook messages, add `outlook` back to the
+> `requirements.txt` pin and add `"msg"` to `ALLOWED_EXTENSIONS` in both
+> `api/convert.py` and `app/constants.ts`.
+
+Troubleshooting "Conversion failed": if text formats convert but a
+PDF/DOCX/PPTX/XLSX fails, the matching extra isn't importable in that runtime
+(see the ARM64 note for local dev). Confirm `requirements.txt` pins the extras and
+the build installed them — a `MissingDependencyException` names the exact one
+(set `MARKITDOWN_DEBUG=1` locally to see it).
+
+## Known limitations
+
+- **Design-heavy or scanned PDFs** (carousels, infographics, image-only scans)
+  produce rough or partial Markdown. MarkItDown targets **text extraction for
+  LLMs**, not visual fidelity or layout reconstruction.
+- **Richer image/scan handling (OCR, visual description)** would require wiring an
+  LLM client (`llm_client` / `llm_model`), which this app intentionally does not
+  configure. Output is deliberately "AI-ready Markdown," not pixel-perfect.
 
 ---
 
@@ -102,6 +149,42 @@ The first `vercel dev` run installs the Python dependencies from
 `requirements.txt` automatically. Uploading a sample PDF/DOCX will return
 rendered Markdown at http://localhost:3000.
 
+> **⚠️ ARM64 Windows caveat.** Some optional markitdown extras have native
+> dependencies (e.g. `pdfminer.six` → `cryptography`, and `lxml`) that may not
+> have prebuilt **win-arm64** wheels. On an ARM64 Windows machine, `vercel dev`
+> can fail to build them locally, so **PDF/DOCX/PPTX/XLSX** conversions will
+> return a 422 locally even though the code is correct. The Vercel build runs on
+> **Linux x86_64**, where prebuilt wheels exist and all formats work. To validate
+> office formats locally on ARM64, use an **x64 Python** toolchain or test on a
+> Vercel **preview deployment**. Text formats (CSV/HTML/JSON/XML/TXT) need no
+> extras and always work locally.
+
+### Debugging conversion failures
+
+Conversion errors return a safe, generic message by default. For local
+debugging, set `MARKITDOWN_DEBUG=1` and the API will include a `detail` field
+with the real exception (e.g. markitdown's `MissingDependencyException`). This is
+**off by default and must never be enabled in production** — it is read from the
+environment and never hardcoded.
+
+```bash
+# macOS/Linux
+MARKITDOWN_DEBUG=1 vercel dev
+# Windows PowerShell
+$env:MARKITDOWN_DEBUG=1; vercel dev
+```
+
+### Tests
+
+An HTTP-level regression suite drives the real handler for the office/binary
+formats (PDF, PPTX, DOCX, XLSX) plus the guardrails, and asserts byte-for-byte
+integrity of the uploaded bytes:
+
+```bash
+# Requires the deps from requirements.txt installed locally.
+python scripts/test_guardrails.py
+```
+
 ---
 
 ## Deploy to Vercel
@@ -135,7 +218,7 @@ No environment variables are required.
   `vercel.json` is strict JSON and can't hold inline comments, so the guidance
   lives here.)
 - **Function size ≤ 250 MB unzipped.** We install only
-  `markitdown[pdf,docx,pptx,xlsx,xls,outlook]` (not `[all]`, audio, or youtube)
+  `markitdown[pdf,docx,pptx,xlsx,xls]` (not `[all]`, audio, or youtube)
   to stay well under the limit.
 
 ---
@@ -199,5 +282,7 @@ It asserts `200` for the happy-path files and `413` / `415` for the guardrail fi
 
 ## License
 
+This project is licensed under the **MIT License** — see [`LICENSE`](./LICENSE).
+
 Uses **Microsoft MarkItDown** ([microsoft/markitdown](https://github.com/microsoft/markitdown),
-MIT License) as the conversion engine. This project is provided as-is.
+MIT License) as the conversion engine.

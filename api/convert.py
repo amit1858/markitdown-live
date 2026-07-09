@@ -13,11 +13,17 @@ API verified against markitdown 0.1.6:
 
 import io
 import json
+import os
 from http.server import BaseHTTPRequestHandler
 
 from markitdown import MarkItDown, StreamInfo
 
 # ---- Limits & policy -------------------------------------------------------
+
+# Dev-only: when MARKITDOWN_DEBUG=1, include the real exception detail in error
+# responses so failures are diagnosable. NEVER enable this in production — it is
+# off by default and the value is read from the environment, never hardcoded.
+DEBUG = os.environ.get("MARKITDOWN_DEBUG") == "1"
 
 # 4 MB hard cap. Vercel serverless functions cap request bodies at ~4.5 MB.
 MAX_UPLOAD_BYTES = 4 * 1024 * 1024
@@ -154,12 +160,30 @@ class handler(BaseHTTPRequestHandler):
 
             try:
                 result = _md.convert_stream(stream, stream_info=stream_info)
-            except Exception:
-                # Never leak stack traces or file contents.
-                self._send_json(
-                    422,
-                    {"error": "Could not convert this file. It may be corrupt or unsupported."},
-                )
+            except Exception as exc:
+                # A very common real-world cause is a missing optional markitdown
+                # extra in the runtime (e.g. [pdf]/[pptx]/[xlsx] not installed),
+                # which surfaces as MissingDependencyException. Detect it so we
+                # can return a clearer (still safe) message and log a non-sensitive
+                # hint — without ever leaking file names, contents, or stack traces.
+                detail = f"{type(exc).__name__}: {exc}"
+                is_missing_dep = "MissingDependencyException" in detail
+
+                if is_missing_dep:
+                    # Server-side breadcrumb: names the file TYPE only, never the
+                    # file name or its contents. Helps operators spot a bad build.
+                    print(f"[markitdown] missing optional dependency for '.{extension}' conversion")
+                    message = (
+                        "This file type can't be converted right now - a required "
+                        "converter component is unavailable on the server."
+                    )
+                else:
+                    message = "Could not convert this file. It may be corrupt or unsupported."
+
+                payload = {"error": message}
+                if DEBUG:
+                    payload["detail"] = detail
+                self._send_json(422, payload)
                 return
             finally:
                 stream.close()
