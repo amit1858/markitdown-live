@@ -23,6 +23,7 @@ venv/
 .DS_Store
 *.pem
 .env
+.env*
 .env*.local
 npm-debug.log*
 yarn-debug.log*

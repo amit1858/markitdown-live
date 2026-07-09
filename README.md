@@ -47,7 +47,7 @@ png, jpg, jpeg`.
 | -------------- | ----------------------------------------------------------- |
 | Frontend       | Next.js (App Router) + React + TypeScript + Tailwind CSS    |
 | Conversion API | Python serverless function at `api/convert.py` (Vercel)     |
-| Engine         | `markitdown[pdf,docx,pptx,xlsx,xls,outlook]` (v0.1.6)       |
+| Engine         | `markitdown[pdf,docx,pptx,xlsx,xls]` (v0.1.6)               |
 
 ```
 /
@@ -75,7 +75,7 @@ png, jpg, jpeg`.
 
 Text-based formats work with the base install. Office and PDF formats each
 require a MarkItDown "extra" — all bundled in our single requirements.txt pin:
-`markitdown[pdf,docx,pptx,xlsx,xls,outlook]`.
+`markitdown[pdf,docx,pptx,xlsx,xls]`.
 
 | Format          | Extensions        | Needs an extra?    | Installed via       |
 | --------------- | ----------------- | ------------------ | ------------------- |
@@ -89,16 +89,16 @@ require a MarkItDown "extra" — all bundled in our single requirements.txt pin:
 | PowerPoint      | .pptx             | Yes                | markitdown[pptx]    |
 | Excel           | .xlsx             | Yes                | markitdown[xlsx]    |
 | Excel (legacy)  | .xls              | Yes                | markitdown[xls]     |
-| Outlook message | .msg              | Yes                | markitdown[outlook] |
 | Images          | .png, .jpg, .jpeg | No (EXIF/metadata) | —                   |
 
 Image note: images return EXIF/metadata and directly extractable text only. Full
 visual description/OCR needs an optional LLM client (`llm_client` / `llm_model`),
 which this app does not configure — so image output is intentionally minimal.
 
-> **`.msg` note:** the `[outlook]` extra is bundled in `requirements.txt`, but
-> `.msg` is **not currently in the upload allow-list**, so `.msg` uploads return
-> `415`. To enable them, add `"msg"` to `ALLOWED_EXTENSIONS` in both
+> **Outlook `.msg` not supported:** the `[outlook]` extra is intentionally **not**
+> installed (the allow-list doesn't accept `.msg`, so shipping it would be unused
+> bundle weight). To enable Outlook messages, add `outlook` back to the
+> `requirements.txt` pin and add `"msg"` to `ALLOWED_EXTENSIONS` in both
 > `api/convert.py` and `app/constants.ts`.
 
 Troubleshooting "Conversion failed": if text formats convert but a
@@ -106,6 +106,15 @@ PDF/DOCX/PPTX/XLSX fails, the matching extra isn't importable in that runtime
 (see the ARM64 note for local dev). Confirm `requirements.txt` pins the extras and
 the build installed them — a `MissingDependencyException` names the exact one
 (set `MARKITDOWN_DEBUG=1` locally to see it).
+
+## Known limitations
+
+- **Design-heavy or scanned PDFs** (carousels, infographics, image-only scans)
+  produce rough or partial Markdown. MarkItDown targets **text extraction for
+  LLMs**, not visual fidelity or layout reconstruction.
+- **Richer image/scan handling (OCR, visual description)** would require wiring an
+  LLM client (`llm_client` / `llm_model`), which this app intentionally does not
+  configure. Output is deliberately "AI-ready Markdown," not pixel-perfect.
 
 ---
 
@@ -209,7 +218,7 @@ No environment variables are required.
   `vercel.json` is strict JSON and can't hold inline comments, so the guidance
   lives here.)
 - **Function size ≤ 250 MB unzipped.** We install only
-  `markitdown[pdf,docx,pptx,xlsx,xls,outlook]` (not `[all]`, audio, or youtube)
+  `markitdown[pdf,docx,pptx,xlsx,xls]` (not `[all]`, audio, or youtube)
   to stay well under the limit.
 
 ---
@@ -273,5 +282,7 @@ It asserts `200` for the happy-path files and `413` / `415` for the guardrail fi
 
 ## License
 
+This project is licensed under the **MIT License** — see [`LICENSE`](./LICENSE).
+
 Uses **Microsoft MarkItDown** ([microsoft/markitdown](https://github.com/microsoft/markitdown),
-MIT License) as the conversion engine. This project is provided as-is.
+MIT License) as the conversion engine.

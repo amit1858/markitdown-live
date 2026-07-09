@@ -21,7 +21,7 @@ These rules are non-negotiable. All code suggestions must comply.
   never URLs.** Pass a `StreamInfo(extension=..., filename=...)` hint so the right
   converter is chosen. Read the result from `result.markdown`.
 - Do not install `markitdown[all]`, audio-transcription, or youtube extras. Only
-  `markitdown[pdf,docx,pptx,xlsx,xls,outlook]`.
+  `markitdown[pdf,docx,pptx,xlsx,xls]`.
 
 ## Validation & security
 - **Respect the 4 MB upload cap and the extension allow-list** on BOTH client and
