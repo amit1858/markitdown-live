@@ -252,15 +252,21 @@ independent layers**:
 - **Backing store:** [Upstash Redis](https://upstash.com/) (also provisionable as
   "Upstash for Redis" via the Vercel Marketplace). Requires two environment
   variables (see below). If they are absent, the limiter **fails open** (disabled)
-  so the app keeps working, and the Firewall layer below still applies.
+  so the app keeps working (add the optional Firewall backstop below if you want a
+  hard cap in that case).
 - **To change the limit:** edit `LIMIT` / `WINDOW` at the top of `middleware.ts`.
 
-**2. Vercel Firewall → HTTP 403 (edge flood backstop).**
-A Vercel WAF custom rate-limit rule on `POST /api/convert` denies traffic (403)
-at a **higher** threshold than the middleware, as a hard flood/DDoS backstop that
-works even if the middleware or KV is unavailable. Configure it in the Vercel
-dashboard under **Firewall → Custom Rules** (available on Hobby; the 429-style
-throttle action requires Pro, which is why the friendly 429 lives in middleware).
+**2. Vercel Firewall → HTTP 403 (optional edge flood backstop).**
+On this deployment the middleware 429 is the **sole active limiter**. A Vercel
+WAF custom rate-limit rule can be added on `POST /api/convert` as a hard
+flood/DDoS backstop that works even if the middleware or KV is unavailable, but
+note: on **Hobby** the WAF only supports a `deny` action (**HTTP 403**), and its
+plan gate is applied inconsistently when editing the rule's threshold — so we
+removed it to keep the friendly **429** as the single, predictable limit. The
+true **429-style throttle** action requires **Pro**. If you want the backstop,
+add it in the Vercel dashboard under **Firewall → Custom Rules** at a threshold
+*higher* than the middleware (it runs *in front of* the middleware, so a lower
+WAF threshold would mask the 429).
 
 ### Required environment variables (rate limiting only)
 
