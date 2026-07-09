@@ -102,6 +102,42 @@ The first `vercel dev` run installs the Python dependencies from
 `requirements.txt` automatically. Uploading a sample PDF/DOCX will return
 rendered Markdown at http://localhost:3000.
 
+> **⚠️ ARM64 Windows caveat.** Some optional markitdown extras have native
+> dependencies (e.g. `pdfminer.six` → `cryptography`, and `lxml`) that may not
+> have prebuilt **win-arm64** wheels. On an ARM64 Windows machine, `vercel dev`
+> can fail to build them locally, so **PDF/DOCX/PPTX/XLSX** conversions will
+> return a 422 locally even though the code is correct. The Vercel build runs on
+> **Linux x86_64**, where prebuilt wheels exist and all formats work. To validate
+> office formats locally on ARM64, use an **x64 Python** toolchain or test on a
+> Vercel **preview deployment**. Text formats (CSV/HTML/JSON/XML/TXT) need no
+> extras and always work locally.
+
+### Debugging conversion failures
+
+Conversion errors return a safe, generic message by default. For local
+debugging, set `MARKITDOWN_DEBUG=1` and the API will include a `detail` field
+with the real exception (e.g. markitdown's `MissingDependencyException`). This is
+**off by default and must never be enabled in production** — it is read from the
+environment and never hardcoded.
+
+```bash
+# macOS/Linux
+MARKITDOWN_DEBUG=1 vercel dev
+# Windows PowerShell
+$env:MARKITDOWN_DEBUG=1; vercel dev
+```
+
+### Tests
+
+An HTTP-level regression suite drives the real handler for the office/binary
+formats (PDF, PPTX, DOCX, XLSX) plus the guardrails, and asserts byte-for-byte
+integrity of the uploaded bytes:
+
+```bash
+# Requires the deps from requirements.txt installed locally.
+python scripts/test_guardrails.py
+```
+
 ---
 
 ## Deploy to Vercel
