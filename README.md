@@ -201,7 +201,9 @@ Or connect the repository in the Vercel dashboard (Framework preset: **Next.js**
 - registers `api/convert.py` as a Python serverless function, and
 - sets the function `maxDuration` to 60 seconds.
 
-No environment variables are required.
+The **core converter requires no environment variables.** The optional per-IP
+rate limiter needs two Upstash Redis variables — see
+[Abuse protection / rate limiting](#abuse-protection--rate-limiting).
 
 ---
 
@@ -236,22 +238,44 @@ No environment variables are required.
 
 ## Abuse protection / rate limiting
 
-`/api/convert` is a public upload endpoint. **Basic per-IP rate limiting is
-deferred to post-MVP** and is intentionally **not** implemented in code, because:
+`/api/convert` is a public upload endpoint, so it is protected by **two
+independent layers**:
 
-- Serverless functions don't share memory between invocations, so an in-process
-  counter can't rate-limit reliably.
-- A durable rate limiter needs an external store (e.g. Upstash Redis / Vercel KV),
-  which would conflict with this app's **strict no-storage** design.
+**1. Edge Middleware → HTTP 429 (primary, friendly limit).**
+`middleware.ts` runs at the edge in front of `/api/convert` and returns
+**`429 Too Many Requests`** once a single IP exceeds **15 requests per 60 seconds**
+(fixed window). Responses include `Retry-After` and `X-RateLimit-*` headers.
 
-Recommended, no-storage-friendly options for production:
+- **Counters only — no-storage promise intact.** The limiter stores *only* a
+  per-IP counter (`mil:rl:<ip>` → integer + TTL) in a KV store. It never sees,
+  stores, or logs file names or contents — uploaded bytes never reach this layer.
+- **Backing store:** [Upstash Redis](https://upstash.com/) (also provisionable as
+  "Upstash for Redis" via the Vercel Marketplace). Requires two environment
+  variables (see below). If they are absent, the limiter **fails open** (disabled)
+  so the app keeps working, and the Firewall layer below still applies.
+- **To change the limit:** edit `LIMIT` / `WINDOW` at the top of `middleware.ts`.
 
-- **Vercel Firewall / Attack Challenge Mode** (platform-level, no code, no
-  retention of file contents) to absorb bursts and bots.
-- Vercel WAF custom rules to rate-limit `POST /api/convert` by IP at the edge.
+**2. Vercel Firewall → HTTP 403 (edge flood backstop).**
+A Vercel WAF custom rate-limit rule on `POST /api/convert` denies traffic (403)
+at a **higher** threshold than the middleware, as a hard flood/DDoS backstop that
+works even if the middleware or KV is unavailable. Configure it in the Vercel
+dashboard under **Firewall → Custom Rules** (available on Hobby; the 429-style
+throttle action requires Pro, which is why the friendly 429 lives in middleware).
 
-The existing **4 MB size cap** and **extension allow-list** already bound the work
-each request can trigger, limiting abuse impact in the meantime.
+### Required environment variables (rate limiting only)
+
+| Variable                   | Purpose                                  |
+| -------------------------- | ---------------------------------------- |
+| `UPSTASH_REDIS_REST_URL`   | Upstash Redis REST endpoint              |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token                 |
+
+The Vercel Marketplace Upstash integration also injects `KV_REST_API_URL` /
+`KV_REST_API_TOKEN`, which the middleware reads as a fallback. **The core
+converter needs no env vars** — these are only for the rate limiter. Set them via
+the Vercel dashboard or `vercel env add`; never hardcode them.
+
+The **4 MB size cap** and **extension allow-list** further bound the work each
+request can trigger.
 
 ---
 
