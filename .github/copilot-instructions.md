@@ -13,6 +13,9 @@ These rules are non-negotiable. All code suggestions must comply.
   to its empty state.
 - No analytics or telemetry that captures file names or contents. Do not log file
   names or file contents on the server.
+- **Rate-limiter exception:** the edge middleware may store *only* per-IP request
+  counters in KV (an IP key + integer + TTL). It must never store, read, or log
+  file names or contents. Uploaded bytes must never reach the middleware/KV layer.
 
 ## Conversion engine
 - **The conversion engine is `microsoft/markitdown`. Verify API usage against
