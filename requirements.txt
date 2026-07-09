@@ -1,0 +1,4 @@
+# Microsoft MarkItDown with only the extras this converter needs.
+# HTML, CSV, JSON, XML, TXT are handled without extras.
+# Deliberately NOT using [all], audio, or youtube extras (bundle size).
+markitdown[pdf,docx,pptx,xlsx,xls,outlook]==0.1.6
