@@ -71,6 +71,44 @@ png, jpg, jpeg`.
 
 ---
 
+## Supported formats & dependencies
+
+Text-based formats work with the base install. Office and PDF formats each
+require a MarkItDown "extra" — all bundled in our single requirements.txt pin:
+`markitdown[pdf,docx,pptx,xlsx,xls,outlook]`.
+
+| Format          | Extensions        | Needs an extra?    | Installed via       |
+| --------------- | ----------------- | ------------------ | ------------------- |
+| HTML            | .html, .htm       | No — built-in      | —                   |
+| CSV             | .csv              | No — built-in      | —                   |
+| JSON            | .json             | No — built-in      | —                   |
+| XML             | .xml              | No — built-in      | —                   |
+| Plain text      | .txt              | No — built-in      | —                   |
+| PDF             | .pdf              | Yes                | markitdown[pdf]     |
+| Word            | .docx             | Yes                | markitdown[docx]    |
+| PowerPoint      | .pptx             | Yes                | markitdown[pptx]    |
+| Excel           | .xlsx             | Yes                | markitdown[xlsx]    |
+| Excel (legacy)  | .xls              | Yes                | markitdown[xls]     |
+| Outlook message | .msg              | Yes                | markitdown[outlook] |
+| Images          | .png, .jpg, .jpeg | No (EXIF/metadata) | —                   |
+
+Image note: images return EXIF/metadata and directly extractable text only. Full
+visual description/OCR needs an optional LLM client (`llm_client` / `llm_model`),
+which this app does not configure — so image output is intentionally minimal.
+
+> **`.msg` note:** the `[outlook]` extra is bundled in `requirements.txt`, but
+> `.msg` is **not currently in the upload allow-list**, so `.msg` uploads return
+> `415`. To enable them, add `"msg"` to `ALLOWED_EXTENSIONS` in both
+> `api/convert.py` and `app/constants.ts`.
+
+Troubleshooting "Conversion failed": if text formats convert but a
+PDF/DOCX/PPTX/XLSX fails, the matching extra isn't importable in that runtime
+(see the ARM64 note for local dev). Confirm `requirements.txt` pins the extras and
+the build installed them — a `MissingDependencyException` names the exact one
+(set `MARKITDOWN_DEBUG=1` locally to see it).
+
+---
+
 ## Local development
 
 ### Prerequisites
